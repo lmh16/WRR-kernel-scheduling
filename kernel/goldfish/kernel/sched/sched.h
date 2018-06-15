@@ -84,8 +84,8 @@ struct rt_bandwidth {
 };
 
 struct wrr_prio_array {
-	DECLARE_BITMAP(bitmap, MAX_WRR_PRIO+1); /* include 1 bit for delimiter */
-	struct list_head queue[MAX_WRR_PRIO];
+	DECLARE_BITMAP(bitmap, MAX_RT_PRIO+1); /* include 1 bit for delimiter */
+	struct list_head queue[MAX_RT_PRIO];
 };
 
 struct wrr_bandwidth {
@@ -371,6 +371,7 @@ struct wrr_rq {
 	struct list_head leaf_wrr_rq_list;
 	struct task_group *tg;
 #endif
+};
 
 #ifdef CONFIG_SMP
 
