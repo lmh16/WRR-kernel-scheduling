@@ -146,7 +146,7 @@ void init_tg_wrr_entry(struct task_group *tg, struct wrr_rq *wrr_rq,
 		return;
 
 	if (!parent)
-		wrr_se->wrr_rq = &rq->rt;
+		wrr_se->wrr_rq = &rq->wrr;
 	else
 		wrr_se->wrr_rq = parent->my_q;
 
@@ -214,7 +214,7 @@ static inline struct wrr_rq *wrr_rq_of_se(struct sched_wrr_entity *wrr_se)
 	struct task_struct *p = wrr_task_of(wrr_se);
 	struct rq *rq = task_rq(p);
 
-	return &rq->rt;
+	return &rq->wrr;
 }
 
 void free_wrr_sched_group(struct task_group *tg) { }
@@ -229,7 +229,7 @@ int alloc_wrr_sched_group(struct task_group *tg, struct task_group *parent)
 
 static inline int wrr_overloaded(struct rq *rq)
 {
-	return atomic_read(&rq->rd->rto_count);
+	return atomic_read(&rq->rd->wrro_count);
 }
 
 static inline void wrr_set_overload(struct rq *rq)
@@ -237,7 +237,7 @@ static inline void wrr_set_overload(struct rq *rq)
 	if (!rq->online)
 		return;
 
-	cpumask_set_cpu(rq->cpu, rq->rd->rto_mask);
+	cpumask_set_cpu(rq->cpu, rq->rd->wrro_mask);
 	/*
 	 * Make sure the mask is visible before we set
 	 * the overload count. That is checked to determine
@@ -246,7 +246,7 @@ static inline void wrr_set_overload(struct rq *rq)
 	 * updated yet.
 	 */
 	wmb();
-	atomic_inc(&rq->rd->rto_count);
+	atomic_inc(&rq->rd->wrro_count);
 }
 
 static inline void wrr_clear_overload(struct rq *rq)
@@ -255,8 +255,8 @@ static inline void wrr_clear_overload(struct rq *rq)
 		return;
 
 	/* the order here really doesn't matter */
-	atomic_dec(&rq->rd->rto_count);
-	cpumask_clear_cpu(rq->cpu, rq->rd->rto_mask);
+	atomic_dec(&rq->rd->wrro_count);
+	cpumask_clear_cpu(rq->cpu, rq->rd->wrro_mask);
 }
 
 static void update_wrr_migration(struct wrr_rq *wrr_rq)
@@ -277,7 +277,7 @@ static void inc_wrr_migration(struct sched_wrr_entity *wrr_se, struct wrr_rq *wr
 	if (!wrr_entity_is_task(wrr_se))
 		return;
 
-	wrr_rq = &rq_of_wrr_rq(wrr_rq)->rt;
+	wrr_rq = &rq_of_wrr_rq(wrr_rq)->wrr;
 
 	wrr_rq->wrr_nr_total++;
 	if (wrr_se->nr_cpus_allowed > 1)
@@ -291,7 +291,7 @@ static void dec_wrr_migration(struct sched_wrr_entity *wrr_se, struct wrr_rq *wr
 	if (!wrr_entity_is_task(wrr_se))
 		return;
 
-	wrr_rq = &rq_of_wrr_rq(wrr_rq)->rt;
+	wrr_rq = &rq_of_wrr_rq(wrr_rq)->wrr;
 
 	wrr_rq->wrr_nr_total--;
 	if (wrr_se->nr_cpus_allowed > 1)
@@ -302,31 +302,31 @@ static void dec_wrr_migration(struct sched_wrr_entity *wrr_se, struct wrr_rq *wr
 
 static inline int has_pushable_tasks(struct rq *rq)
 {
-	return !plist_head_empty(&rq->rt.pushable_tasks);
+	return !plist_head_empty(&rq->wrr.pushable_tasks);
 }
 
 static void enqueue_pushable_task(struct rq *rq, struct task_struct *p)
 {
-	plist_del(&p->pushable_tasks, &rq->rt.pushable_tasks);
+	plist_del(&p->pushable_tasks, &rq->wrr.pushable_tasks);
 	plist_node_init(&p->pushable_tasks, p->prio);
-	plist_add(&p->pushable_tasks, &rq->rt.pushable_tasks);
+	plist_add(&p->pushable_tasks, &rq->wrr.pushable_tasks);
 
 	/* Update the highest prio pushable task */
-	if (p->prio < rq->rt.highest_prio.next)
-		rq->rt.highest_prio.next = p->prio;
+	if (p->prio < rq->wrr.highest_prio.next)
+		rq->wrr.highest_prio.next = p->prio;
 }
 
 static void dequeue_pushable_task(struct rq *rq, struct task_struct *p)
 {
-	plist_del(&p->pushable_tasks, &rq->rt.pushable_tasks);
+	plist_del(&p->pushable_tasks, &rq->wrr.pushable_tasks);
 
 	/* Update the new highest prio pushable task */
 	if (has_pushable_tasks(rq)) {
-		p = plist_first_entry(&rq->rt.pushable_tasks,
+		p = plist_first_entry(&rq->wrr.pushable_tasks,
 				      struct task_struct, pushable_tasks);
-		rq->rt.highest_prio.next = p->prio;
+		rq->wrr.highest_prio.next = p->prio;
 	} else
-		rq->rt.highest_prio.next = MAX_wrr_PRIO;
+		rq->wrr.highest_prio.next = MAX_wrr_PRIO;
 }
 
 #else
@@ -499,7 +499,7 @@ static inline u64 sched_wrr_period(struct wrr_rq *wrr_rq)
 typedef struct wrr_rq *wrr_rq_iter_t;
 
 #define for_each_wrr_rq(wrr_rq, iter, rq) \
-	for ((void) iter, wrr_rq = &rq->rt; wrr_rq; wrr_rq = NULL)
+	for ((void) iter, wrr_rq = &rq->wrr; wrr_rq; wrr_rq = NULL)
 
 static inline void list_add_leaf_wrr_rq(struct wrr_rq *wrr_rq)
 {
@@ -510,7 +510,7 @@ static inline void list_del_leaf_wrr_rq(struct wrr_rq *wrr_rq)
 }
 
 #define for_each_leaf_wrr_rq(wrr_rq, rq) \
-	for (wrr_rq = &rq->rt; wrr_rq; wrr_rq = NULL)
+	for (wrr_rq = &rq->wrr; wrr_rq; wrr_rq = NULL)
 
 #define for_each_sched_wrr_entity(wrr_se) \
 	for (; wrr_se; wrr_se = NULL)
@@ -543,7 +543,7 @@ static inline const struct cpumask *sched_wrr_period_mask(void)
 static inline
 struct wrr_rq *sched_wrr_period_wrr_rq(struct wrr_bandwidth *wrr_b, int cpu)
 {
-	return &cpu_rq(cpu)->rt;
+	return &cpu_rq(cpu)->wrr;
 }
 
 static inline struct wrr_bandwidth *sched_wrr_bandwidth(struct wrr_rq *wrr_rq)
@@ -897,7 +897,7 @@ static int sched_wrr_runtime_exceeded(struct wrr_rq *wrr_rq)
 static void update_curr_wrr(struct rq *rq)
 {
 	struct task_struct *curr = rq->curr;
-	struct sched_wrr_entity *wrr_se = &curr->rt;
+	struct sched_wrr_entity *wrr_se = &curr->wrr;
 	struct wrr_rq *wrr_rq = wrr_rq_of_se(wrr_se);
 	u64 delta_exec;
 
@@ -1199,7 +1199,7 @@ requeue_wrr_entity(struct wrr_rq *wrr_rq, struct sched_wrr_entity *wrr_se, int h
 
 static void requeue_task_wrr(struct rq *rq, struct task_struct *p, int head)
 {
-	struct sched_wrr_entity *wrr_se = &p->rt;
+	struct sched_wrr_entity *wrr_se = &p->wrr;
 	struct wrr_rq *wrr_rq;
 
 	for_each_sched_wrr_entity(wrr_se) {
@@ -1223,10 +1223,10 @@ select_task_rq_wrr(struct task_struct *p, int sd_flag, int flags)
 
 static void check_preempt_equal_prio(struct rq *rq, struct task_struct *p)
 {
-	if (rq->curr->rt.nr_cpus_allowed == 1)
+	if (rq->curr->wrr.nr_cpus_allowed == 1)
 		return;
 
-	if (p->rt.nr_cpus_allowed != 1
+	if (p->wrr.nr_cpus_allowed != 1
 	    && cpupri_find(&rq->rd->cpupri, p, NULL))
 		return;
 
@@ -1295,7 +1295,7 @@ static struct task_struct *_pick_next_task_wrr(struct rq *rq)
 	struct task_struct *p;
 	struct wrr_rq *wrr_rq;
 
-	wrr_rq = &rq->rt;
+	wrr_rq = &rq->wrr;
 
 	if (!wrr_rq->wrr_nr_running)
 		return NULL;
@@ -1342,7 +1342,7 @@ static void put_prev_task_wrr(struct rq *rq, struct task_struct *p)
 	 * The previous task needs to be made eligible for pushing
 	 * if it is still active
 	 */
-	if (on_wrr_rq(&p->rt) && p->rt.nr_cpus_allowed > 1)
+	if (on_wrr_rq(&p->wrr) && p->wrr.nr_cpus_allowed > 1)
 		enqueue_pushable_task(rq, p);
 }
 
@@ -1355,7 +1355,7 @@ static int pick_wrr_task(struct rq *rq, struct task_struct *p, int cpu)
 {
 	if (!task_running(rq, p) &&
 	    (cpu < 0 || cpumask_test_cpu(cpu, tsk_cpus_allowed(p))) &&
-	    (p->rt.nr_cpus_allowed > 1))
+	    (p->wrr.nr_cpus_allowed > 1))
 		return 1;
 	return 0;
 }
@@ -1411,7 +1411,7 @@ static int find_lowest_rq(struct task_struct *task)
 	if (unlikely(!lowest_mask))
 		return -1;
 
-	if (task->rt.nr_cpus_allowed == 1)
+	if (task->wrr.nr_cpus_allowed == 1)
 		return -1; /* No other targets possible */
 
 	if (!cpupri_find(&task_rq(task)->rd->cpupri, task, lowest_mask))
@@ -1510,7 +1510,7 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 		}
 
 		/* If this rq is still suitable use it. */
-		if (lowest_rq->rt.highest_prio.curr > task->prio)
+		if (lowest_rq->wrr.highest_prio.curr > task->prio)
 			break;
 
 		/* try again */
@@ -1528,12 +1528,12 @@ static struct task_struct *pick_next_pushable_task(struct rq *rq)
 	if (!has_pushable_tasks(rq))
 		return NULL;
 
-	p = plist_first_entry(&rq->rt.pushable_tasks,
+	p = plist_first_entry(&rq->wrr.pushable_tasks,
 			      struct task_struct, pushable_tasks);
 
 	BUG_ON(rq->cpu != task_cpu(p));
 	BUG_ON(task_current(rq, p));
-	BUG_ON(p->rt.nr_cpus_allowed <= 1);
+	BUG_ON(p->wrr.nr_cpus_allowed <= 1);
 
 	BUG_ON(!p->on_rq);
 	BUG_ON(!wrr_task(p));
@@ -1552,7 +1552,7 @@ static int push_wrr_task(struct rq *rq)
 	struct rq *lowest_rq;
 	int ret = 0;
 
-	if (!rq->rt.overloaded)
+	if (!rq->wrr.overloaded)
 		return 0;
 
 	next_task = pick_next_pushable_task(rq);
@@ -1649,7 +1649,7 @@ static int pull_wrr_task(struct rq *this_rq)
 	if (likely(!wrr_overloaded(this_rq)))
 		return 0;
 
-	for_each_cpu(cpu, this_rq->rd->rto_mask) {
+	for_each_cpu(cpu, this_rq->rd->wrro_mask) {
 		if (this_cpu == cpu)
 			continue;
 
@@ -1662,8 +1662,8 @@ static int pull_wrr_task(struct rq *this_rq)
 		 * logically higher, the src_rq will push this task away.
 		 * And if its going logically lower, we do not care
 		 */
-		if (src_rq->rt.highest_prio.next >=
-		    this_rq->rt.highest_prio.curr)
+		if (src_rq->wrr.highest_prio.next >=
+		    this_rq->wrr.highest_prio.curr)
 			continue;
 
 		/*
@@ -1676,7 +1676,7 @@ static int pull_wrr_task(struct rq *this_rq)
 		/*
 		 * Are there still pullable RT tasks?
 		 */
-		if (src_rq->rt.wrr_nr_running <= 1)
+		if (src_rq->wrr.wrr_nr_running <= 1)
 			goto skip;
 
 		p = pick_next_highest_task_wrr(src_rq, this_cpu);
@@ -1685,7 +1685,7 @@ static int pull_wrr_task(struct rq *this_rq)
 		 * Do we have an RT task that preempts
 		 * the to-be-scheduled task?
 		 */
-		if (p && (p->prio < this_rq->rt.highest_prio.curr)) {
+		if (p && (p->prio < this_rq->wrr.highest_prio.curr)) {
 			WARN_ON(p == src_rq->curr);
 			WARN_ON(!p->on_rq);
 
@@ -1790,22 +1790,22 @@ static void watchdog(struct rq *rq, struct task_struct *p)
 	unsigned long soft, hard;
 
 	/* max may change after cur was read, this will be fixed next tick */
-	soft = task_rlimit(p, RLIMIT_wrrTIME);
-	hard = task_rlimit_max(p, RLIMIT_wrrTIME);
+	soft = task_rlimit(p, RLIMIT_RTTIME);
+	hard = task_rlimit_max(p, RLIMIT_RTTIME);
 
 	if (soft != RLIM_INFINITY) {
 		unsigned long next;
 
-		p->rt.timeout++;
+		p->wrr.timeout++;
 		next = DIV_ROUND_UP(min(soft, hard), USEC_PER_SEC/HZ);
-		if (p->rt.timeout > next)
+		if (p->wrr.timeout > next)
 			p->cputime_expires.sched_exp = p->se.sum_exec_runtime;
 	}
 }
 
 static void task_tick_wrr(struct rq *rq, struct task_struct *p, int queued)
 {
-	struct sched_wrr_entity *wrr_se = &p->rt;
+	struct sched_wrr_entity *wrr_se = &p->wrr;
 
 	update_curr_wrr(rq);
 
@@ -1818,10 +1818,10 @@ static void task_tick_wrr(struct rq *rq, struct task_struct *p, int queued)
 	if (p->policy != SCHED_RR)
 		return;
 
-	if (--p->rt.time_slice)
+	if (--p->wrr.time_slice)
 		return;
 
-	p->rt.time_slice = RR_TIMESLICE;
+	p->wrr.time_slice = RR_TIMESLICE;
 
 	/*
 	 * Requeue to the end of queue if we (and all of our ancestors) are the
