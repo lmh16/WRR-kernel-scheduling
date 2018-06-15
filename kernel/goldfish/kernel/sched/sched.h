@@ -55,6 +55,18 @@ static inline int task_has_rt_policy(struct task_struct *p)
 	return rt_policy(p->policy);
 }
 
+static inline int wrr_policy(int policy)
+{
+	if (policy == SCHED_WRR)
+		return 1;
+	return 0;
+}
+
+static inline int task_has_wrr_policy(struct task_struct *p)
+{
+	return wrr_policy(p->policy);
+}
+
 /*
  * This is the priority-queue data structure of the RT scheduling class:
  */
@@ -69,6 +81,19 @@ struct rt_bandwidth {
 	ktime_t			rt_period;
 	u64			rt_runtime;
 	struct hrtimer		rt_period_timer;
+};
+
+struct wrr_prio_array {
+	DECLARE_BITMAP(bitmap, MAX_WRR_PRIO+1); /* include 1 bit for delimiter */
+	struct list_head queue[MAX_WRR_PRIO];
+};
+
+struct wrr_bandwidth {
+	/* nests inside the rq lock: */
+	raw_spinlock_t		wrr_runtime_lock;
+	ktime_t			wrr_period;
+	u64			wrr_runtime;
+	struct hrtimer		wrr_period_timer;
 };
 
 extern struct mutex sched_domains_mutex;
