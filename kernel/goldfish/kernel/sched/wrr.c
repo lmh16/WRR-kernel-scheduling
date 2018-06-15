@@ -57,7 +57,7 @@ static void stawrr_wrr_bandwidth(struct wrr_bandwidth *wrr_b)
 	raw_spin_unlock(&wrr_b->wrr_runtime_lock);
 }
 
-void init_wrr_rq(struct wrr_rq *wrr_rq, struct rq *rq)n
+void init_wrr_rq(struct wrr_rq *wrr_rq, struct rq *rq)
 {
 	struct wrr_prio_array *array;
 	int i;
