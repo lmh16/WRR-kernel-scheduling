@@ -1281,7 +1281,7 @@ static struct sched_wrr_entity *pick_next_wrr_entity(struct rq *rq,
 	int idx;
 
 	idx = sched_find_first_bit(array->bitmap);
-	BUG_ON(idx >= MAX_wrr_PRIO);
+	BUG_ON(idx >= MAX_RT_PRIO);
 
 	queue = array->queue + idx;
 	next = list_entry(queue->next, struct sched_wrr_entity, run_list);
