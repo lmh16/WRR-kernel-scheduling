@@ -307,6 +307,10 @@ static inline int rt_bandwidth_enabled(void)
 {
 	return sysctl_sched_rt_runtime >= 0;
 }
+static inline int wrr_bandwidth_enabled(void)
+{
+	return 0; // lmh16
+}
 
 /* Real-Time classes' related field in a runqueue: */
 struct rt_rq {

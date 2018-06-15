@@ -44,7 +44,7 @@ void init_wrr_bandwidth(struct wrr_bandwidth *wrr_b, u64 period, u64 runtime)
 	wrr_b->wrr_period_timer.function = sched_wrr_period_timer;
 }
 
-static void stawrr_wrr_bandwidth(struct wrr_bandwidth *wrr_b)
+static void start_wrr_bandwidth(struct wrr_bandwidth *wrr_b)
 {
 	if (!wrr_bandwidth_enabled() || wrr_b->wrr_runtime == RUNTIME_INF)
 		return;
@@ -53,7 +53,7 @@ static void stawrr_wrr_bandwidth(struct wrr_bandwidth *wrr_b)
 		return;
 
 	raw_spin_lock(&wrr_b->wrr_runtime_lock);
-	stawrr_bandwidth_timer(&wrr_b->wrr_period_timer, wrr_b->wrr_period);
+	start_bandwidth_timer(&wrr_b->wrr_period_timer, wrr_b->wrr_period);
 	raw_spin_unlock(&wrr_b->wrr_runtime_lock);
 }
 
@@ -63,16 +63,16 @@ void init_wrr_rq(struct wrr_rq *wrr_rq, struct rq *rq)
 	int i;
 
 	array = &wrr_rq->active;
-	for (i = 0; i < MAX_wrr_PRIO; i++) {
+	for (i = 0; i < MAX_RT_PRIO; i++) {
 		INIT_LIST_HEAD(array->queue + i);
 		__clear_bit(i, array->bitmap);
 	}
 	/* delimiter for bitsearch: */
-	__set_bit(MAX_wrr_PRIO, array->bitmap);
+	__set_bit(MAX_RT_PRIO, array->bitmap);
 
 #if defined CONFIG_SMP
-	wrr_rq->highest_prio.curr = MAX_wrr_PRIO;
-	wrr_rq->highest_prio.next = MAX_wrr_PRIO;
+	wrr_rq->highest_prio.curr = MAX_RT_PRIO;
+	wrr_rq->highest_prio.next = MAX_RT_PRIO;
 	wrr_rq->wrr_nr_migratory = 0;
 	wrr_rq->overloaded = 0;
 	plist_head_init(&wrr_rq->pushable_tasks);
@@ -97,7 +97,7 @@ static inline struct task_struct *wrr_task_of(struct sched_wrr_entity *wrr_se)
 #ifdef CONFIG_SCHED_DEBUG
 	WARN_ON_ONCE(!wrr_entity_is_task(wrr_se));
 #endif
-	return container_of(wrr_se, struct task_struct, rt);
+	return container_of(wrr_se, struct task_struct, wrr);
 }
 
 static inline struct rq *rq_of_wrr_rq(struct wrr_rq *wrr_rq)
@@ -134,7 +134,7 @@ void init_tg_wrr_entry(struct task_group *tg, struct wrr_rq *wrr_rq,
 {
 	struct rq *rq = cpu_rq(cpu);
 
-	wrr_rq->highest_prio.curr = MAX_wrr_PRIO;
+	wrr_rq->highest_prio.curr = MAX_RT_PRIO;
 	wrr_rq->wrr_nr_boosted = 0;
 	wrr_rq->rq = rq;
 	wrr_rq->tg = tg;
@@ -201,12 +201,12 @@ err:
 
 static inline struct task_struct *wrr_task_of(struct sched_wrr_entity *wrr_se)
 {
-	return container_of(wrr_se, struct task_struct, rt);
+	return container_of(wrr_se, struct task_struct, wrr);
 }
 
 static inline struct rq *rq_of_wrr_rq(struct wrr_rq *wrr_rq)
 {
-	return container_of(wrr_rq, struct rq, rt);
+	return container_of(wrr_rq, struct rq, wrr);
 }
 
 static inline struct wrr_rq *wrr_rq_of_se(struct sched_wrr_entity *wrr_se)
@@ -326,7 +326,7 @@ static void dequeue_pushable_task(struct rq *rq, struct task_struct *p)
 				      struct task_struct, pushable_tasks);
 		rq->wrr.highest_prio.next = p->prio;
 	} else
-		rq->wrr.highest_prio.next = MAX_wrr_PRIO;
+		rq->wrr.highest_prio.next = MAX_RT_PRIO;
 }
 
 #else
@@ -917,7 +917,7 @@ static void update_curr_wrr(struct rq *rq)
 	curr->se.exec_start = rq->clock_task;
 	cpuacct_charge(curr, delta_exec);
 
-	sched_wrr_avg_update(rq, delta_exec);
+	//sched_wrr_avg_update(rq, delta_exec);
 
 	if (!wrr_bandwidth_enabled())
 		return;
@@ -997,7 +997,7 @@ dec_wrr_prio(struct wrr_rq *wrr_rq, int prio)
 		}
 
 	} else
-		wrr_rq->highest_prio.curr = MAX_wrr_PRIO;
+		wrr_rq->highest_prio.curr = MAX_RT_PRIO;
 
 	dec_wrr_prio_smp(wrr_rq, prio, prev_prio);
 }
@@ -1018,7 +1018,7 @@ inc_wrr_group(struct sched_wrr_entity *wrr_se, struct wrr_rq *wrr_rq)
 		wrr_rq->wrr_nr_boosted++;
 
 	if (wrr_rq->tg)
-		stawrr_wrr_bandwidth(&wrr_rq->tg->wrr_bandwidth);
+		start_wrr_bandwidth(&wrr_rq->tg->wrr_bandwidth);
 }
 
 static void
@@ -1035,7 +1035,7 @@ dec_wrr_group(struct sched_wrr_entity *wrr_se, struct wrr_rq *wrr_rq)
 static void
 inc_wrr_group(struct sched_wrr_entity *wrr_se, struct wrr_rq *wrr_rq)
 {
-	stawrr_wrr_bandwidth(&def_wrr_bandwidth);
+	start_wrr_bandwidth(&def_wrr_bandwidth);
 }
 
 static inline
@@ -1048,7 +1048,6 @@ void inc_wrr_tasks(struct sched_wrr_entity *wrr_se, struct wrr_rq *wrr_rq)
 {
 	int prio = wrr_se_prio(wrr_se);
 
-	WARN_ON(!wrr_prio(prio));
 	wrr_rq->wrr_nr_running++;
 
 	inc_wrr_prio(wrr_rq, prio);
@@ -1059,7 +1058,7 @@ void inc_wrr_tasks(struct sched_wrr_entity *wrr_se, struct wrr_rq *wrr_rq)
 static inline
 void dec_wrr_tasks(struct sched_wrr_entity *wrr_se, struct wrr_rq *wrr_rq)
 {
-	WARN_ON(!wrr_prio(wrr_se_prio(wrr_se)));
+	//WARN_ON(!wrr_prio(wrr_se_prio(wrr_se)));
 	WARN_ON(!wrr_rq->wrr_nr_running);
 	wrr_rq->wrr_nr_running--;
 
@@ -1373,7 +1372,7 @@ static struct task_struct *pick_next_highest_task_wrr(struct rq *rq, int cpu)
 		array = &wrr_rq->active;
 		idx = sched_find_first_bit(array->bitmap);
 next_idx:
-		if (idx >= MAX_wrr_PRIO)
+		if (idx >= MAX_RT_PRIO)
 			continue;
 		if (next && next->prio <= idx)
 			continue;
@@ -1390,7 +1389,7 @@ next_idx:
 			}
 		}
 		if (!next) {
-			idx = find_next_bit(array->bitmap, MAX_wrr_PRIO, idx+1);
+			idx = find_next_bit(array->bitmap, MAX_RT_PRIO, idx+1);
 			goto next_idx;
 		}
 	}

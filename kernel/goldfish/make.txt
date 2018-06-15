@@ -3,18 +3,16 @@
 make[1]: 'include/generated/mach-types.h' is up to date.
   CALL    scripts/checksyscalls.sh
   CHK     include/generated/compile.h
-  CC      kernel/sched/core.o
-  AS      arch/arm/lib/copy_page.o
-  AS      arch/arm/lib/csumpartialcopyuser.o
-  AR      arch/arm/lib/lib.a
-  CC      kernel/sched/rt.o
-  CC      kernel/module.o
-  CC      kernel/kallsyms.o
-  CC      kernel/cgroup.o
   CC      kernel/sched/wrr.o
-scripts/Makefile.build:307: recipe for target 'kernel/sched/wrr.o' failed
-  CC      kernel/cgroup_freezer.o
   CHK     kernel/config_data.h
-  CC      kernel/res_counter.o
-scripts/Makefile.build:443: recipe for target 'kernel/sched' failed
-Makefile:945: recipe for target 'kernel' failed
+  LD      kernel/sched/built-in.o
+  LD      kernel/built-in.o
+  LD      vmlinux.o
+  MODPOST vmlinux.o
+  GEN     .version
+  CHK     include/generated/compile.h
+  UPD     include/generated/compile.h
+  CC      init/version.o
+  LD      init/built-in.o
+  LD      .tmp_vmlinux1
+Makefile:873: recipe for target '.tmp_vmlinux1' failed
