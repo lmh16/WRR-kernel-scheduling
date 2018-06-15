@@ -1266,7 +1266,6 @@ struct sched_wrr_entity {
 };
 
 /*
-/*
  * default timeslice is 100 msecs (used only for SCHED_RR tasks).
  * Timeslices get refilled after they expire.
  */
