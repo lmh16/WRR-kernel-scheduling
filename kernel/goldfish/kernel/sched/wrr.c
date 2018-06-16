@@ -1422,7 +1422,7 @@ static void task_tick_wrr(struct rq *rq, struct task_struct *p, int queued)
 	if (--p->wrr.time_slice)
 		return;
 
-	p->wrr.time_slice = WRR_TIMESLICE*p->wrr.weight;
+	p->wrr.time_slice = RR_TIMESLICE*p->wrr.weight;
 	if(!p->wrr.fg)
 		p->wrr.time_slice /= 10;
 
