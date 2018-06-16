@@ -1219,28 +1219,6 @@ static int
 select_task_rq_wrr(struct task_struct *p, int sd_flag, int flags)
 {
 }
-
-static void check_preempt_equal_prio(struct rq *rq, struct task_struct *p)
-{
-	if (rq->curr->wrr.nr_cpus_allowed == 1)
-		return;
-
-	if (p->wrr.nr_cpus_allowed != 1
-	    && cpupri_find(&rq->rd->cpupri, p, NULL))
-		return;
-
-	if (!cpupri_find(&rq->rd->cpupri, rq->curr, NULL))
-		return;
-
-	/*
-	 * There appears to be other cpus that can accept
-	 * current and none to run 'p', so lets reschedule
-	 * to try and push current away:
-	 */
-	requeue_task_wrr(rq, p, 1);
-	resched_task(rq->curr);
-}
-
 #endif /* CONFIG_SMP */
 
 /*
@@ -1248,27 +1226,10 @@ static void check_preempt_equal_prio(struct rq *rq, struct task_struct *p)
  */
 static void check_preempt_curr_wrr(struct rq *rq, struct task_struct *p, int flags)
 {
-	if (p->prio < rq->curr->prio) {
-		resched_task(rq->curr);
-		return;
-	}
-
-#ifdef CONFIG_SMP
-	/*
-	 * If:
-	 *
-	 * - the newly woken task is of equal priority to the current task
-	 * - the newly woken task is non-migratable while current is migratable
-	 * - current will be preempted on the next reschedule
-	 *
-	 * we should check to see if current can readily move to a different
-	 * cpu.  If so, we will reschedule to allow the push logic to try
-	 * to move current somewhere else, making room for our non-migratable
-	 * task.
-	 */
-	if (p->prio == rq->curr->prio && !test_tsk_need_resched(rq->curr))
-		check_preempt_equal_prio(rq, p);
-#endif
+	rq->curr->fg = 0;
+	resched_task(rq->curr);
+	p->fg = 1;
+	return;
 }
 
 static struct sched_wrr_entity *pick_next_wrr_entity(struct rq *rq,
