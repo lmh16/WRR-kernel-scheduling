@@ -1226,9 +1226,9 @@ select_task_rq_wrr(struct task_struct *p, int sd_flag, int flags)
  */
 static void check_preempt_curr_wrr(struct rq *rq, struct task_struct *p, int flags)
 {
-	rq->curr->fg = 0;
+	rq->curr->wrr.fg = 0;
 	resched_task(rq->curr);
-	p->fg = 1;
+	p->wrr.fg = 1;
 	return;
 }
 
