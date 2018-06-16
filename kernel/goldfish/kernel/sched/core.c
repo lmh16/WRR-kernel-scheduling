@@ -7080,6 +7080,7 @@ void __init sched_init(void)
 #ifdef CONFIG_RT_GROUP_SCHED
 	alloc_size += 2 * nr_cpu_ids * sizeof(void **);
 #endif
+
 #ifdef CONFIG_CPUMASK_OFFSTACK
 	alloc_size += num_possible_cpus() * cpumask_size();
 #endif
@@ -7102,6 +7103,14 @@ void __init sched_init(void)
 		ptr += nr_cpu_ids * sizeof(void **);
 
 #endif /* CONFIG_RT_GROUP_SCHED */
+#ifdef CONFIG_WRR_GROUP_SCHED
+		root_task_group.wrr_se = (struct sched_wrr_entity **)ptr;
+		ptr += nr_cpu_ids * sizeof(void **);
+
+		root_task_group.wrr_rq = (struct wrr_rq **)ptr;
+		ptr += nr_cpu_ids * sizeof(void **);
+
+#endif /* CONFIG_WRR_GROUP_SCHED */
 #ifdef CONFIG_CPUMASK_OFFSTACK
 		for_each_possible_cpu(i) {
 			per_cpu(load_balance_tmpmask, i) = (void *)ptr;
@@ -7178,6 +7187,10 @@ void __init sched_init(void)
 		INIT_LIST_HEAD(&rq->leaf_rt_rq_list);
 		init_tg_rt_entry(&root_task_group, &rq->rt, NULL, i, NULL);
 #endif
+#ifdef CONFIG_WRR_GROUP_SCHED
+		INIT_LIST_HEAD(&rq->leaf_wrr_rq_list);
+		init_tg_wrr_entry(&root_task_group, &rq->wrr, NULL, i, NULL);
+#endif
 
 		for (j = 0; j < CPU_LOAD_IDX_MAX; j++)
 			rq->cpu_load[j] = 0;
@@ -7214,6 +7227,9 @@ void __init sched_init(void)
 	INIT_HLIST_HEAD(&init_task.preempt_notifiers);
 #endif
 
+#ifdef CONFIG_RT_MUTEXES
+	plist_head_init(&init_task.pi_waiters);
+#endif
 #ifdef CONFIG_RT_MUTEXES
 	plist_head_init(&init_task.pi_waiters);
 #endif
@@ -7527,7 +7543,7 @@ void sched_move_task(struct task_struct *tsk)
 }
 #endif /* CONFIG_CGROUP_SCHED */
 
-#if defined(CONFIG_RT_GROUP_SCHED) || defined(CONFIG_CFS_BANDWIDTH)
+#if defined(CONFIG_RT_GROUP_SCHED) || defined(CONFIG_CFS_BANDWIDTH) || defined(CONFIG_RT_GROUP_SCHED)
 static unsigned long to_ratio(u64 period, u64 runtime)
 {
 	if (runtime == RUNTIME_INF)
