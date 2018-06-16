@@ -1253,6 +1253,7 @@ struct sched_wrr_entity {
 	struct list_head run_list;
 	unsigned long timeout;
 	unsigned int time_slice;
+	unsigned int weight;
 	int nr_cpus_allowed;
 
 	struct sched_wrr_entity *back;
