@@ -1780,8 +1780,8 @@ static void task_tick_wrr(struct rq *rq, struct task_struct *p, int queued)
 		return;
 
 	p->wrr.time_slice = WRR_TIMESLICE*p->wrr.weight;
-	if(p->wrr.fg)
-		p->wrr.time_slice *= 10;
+	if(!p->wrr.fg)
+		p->wrr.time_slice /= 10;
 
 	/*
 	 * Requeue to the end of queue if we (and all of our ancestors) are the
