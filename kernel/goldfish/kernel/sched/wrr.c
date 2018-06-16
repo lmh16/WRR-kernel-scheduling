@@ -1814,13 +1814,13 @@ static void task_tick_wrr(struct rq *rq, struct task_struct *p, int queued)
 	 * RR tasks need a special form of timeslice management.
 	 * FIFO tasks have no timeslices.
 	 */
-	if (p->policy != SCHED_RR)
-		return;
 
 	if (--p->wrr.time_slice)
 		return;
 
-	p->wrr.time_slice = RR_TIMESLICE;
+	p->wrr.time_slice = WRR_TIMESLICE*p->wrr.weight;
+	if(p->wrr.fg)
+		p->wrr.time_slice *= 10;
 
 	/*
 	 * Requeue to the end of queue if we (and all of our ancestors) are the
@@ -1847,13 +1847,6 @@ static void set_curr_task_wrr(struct rq *rq)
 
 static unsigned int get_rr_interval_wrr(struct rq *rq, struct task_struct *task)
 {
-	/*
-	 * Time slice is 0 for SCHED_FIFO tasks
-	 */
-	if (task->policy == SCHED_RR)
-		return RR_TIMESLICE;
-	else
-		return 0;
 }
 
 const struct sched_class wrr_sched_class = {
